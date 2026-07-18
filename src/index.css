@@ -1,0 +1,149 @@
+@import "tailwindcss";
+
+/*
+  Design tokens for SaveTogether.
+  Warm, quiet, editorial surface language (in the spirit of Claude's product UI),
+  re-tuned to the spec's own rule: green/blue = growth & trust, red is reserved
+  strictly for real alerts (savings-tracker-spec.md section 8 and 15).
+*/
+@theme {
+  --font-sans: "Inter", "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
+
+  /* Warm neutral paper scale (light) */
+  --color-paper: #faf8f3;
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f2efe6;
+  --color-ink: #262420;
+  --color-ink-muted: #6f6b60;
+  --color-ink-faint: #a29d8f;
+  --color-line: #e8e3d7;
+  --color-line-strong: #d8d2c2;
+
+  /* Growth / trust accent (green) */
+  --color-growth-50: #eef7f1;
+  --color-growth-100: #d7ecdd;
+  --color-growth-400: #3f9e70;
+  --color-growth-500: #2c8560;
+  --color-growth-600: #1f6b4c;
+  --color-growth-700: #17513a;
+
+  /* Stability accent (blue) */
+  --color-trust-50: #eef3fb;
+  --color-trust-100: #d7e3f5;
+  --color-trust-400: #4c7cc7;
+  --color-trust-500: #3563a8;
+  --color-trust-600: #274b80;
+
+  /* Caution (amber) - low-confidence OCR, needs-review flags */
+  --color-caution-50: #fbf3e3;
+  --color-caution-400: #d99a2b;
+  --color-caution-600: #a5721a;
+
+  /* Alert (red) - reserved for real reconciliation mismatches only */
+  --color-alert-50: #fceeec;
+  --color-alert-400: #d1594a;
+  --color-alert-600: #a83b2e;
+
+  --radius-card: 1.25rem;
+  --radius-control: 0.875rem;
+
+  --shadow-card: 0 1px 2px rgba(38, 36, 32, 0.04), 0 6px 20px -8px rgba(38, 36, 32, 0.10);
+  --shadow-float: 0 10px 30px -6px rgba(31, 107, 76, 0.35);
+}
+
+/* Dark mode - same tokens, warm-dark surface, brighter accents for contrast */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-paper: #1b1a17;
+    --color-surface: #232120;
+    --color-surface-sunken: #17161c;
+    --color-ink: #f3f1ea;
+    --color-ink-muted: #b3ae9f;
+    --color-ink-faint: #7d7869;
+    --color-line: #35322b;
+    --color-line-strong: #454136;
+
+    --color-growth-50: #16261e;
+    --color-growth-100: #1c3728;
+    --color-growth-400: #5fcf95;
+    --color-growth-500: #46b47d;
+    --color-growth-600: #2f8f66;
+    --color-growth-700: #256f50;
+
+    --color-trust-50: #16202e;
+    --color-trust-100: #1c2c40;
+    --color-trust-400: #86adf0;
+    --color-trust-500: #6690dd;
+    --color-trust-600: #4c74c2;
+
+    --color-caution-50: #2b2213;
+    --color-caution-400: #e5b34f;
+    --color-caution-600: #f0c876;
+
+    --color-alert-50: #2a1815;
+    --color-alert-400: #e07a6a;
+    --color-alert-600: #ef9a8c;
+
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+  }
+}
+
+:root[data-theme="dark"] {
+  --color-paper: #1b1a17;
+  --color-surface: #232120;
+  --color-surface-sunken: #17161c;
+  --color-ink: #f3f1ea;
+  --color-ink-muted: #b3ae9f;
+  --color-ink-faint: #7d7869;
+  --color-line: #35322b;
+  --color-line-strong: #454136;
+
+  --color-growth-50: #16261e;
+  --color-growth-100: #1c3728;
+  --color-growth-400: #4db984;
+  --color-growth-500: #5fcf95;
+  --color-growth-600: #7fdaab;
+  --color-growth-700: #a6e6c4;
+
+  --color-trust-50: #16202e;
+  --color-trust-100: #1c2c40;
+  --color-trust-400: #6c9be0;
+  --color-trust-500: #86adf0;
+  --color-trust-600: #a9c5f5;
+
+  --color-caution-50: #2b2213;
+  --color-caution-400: #e5b34f;
+  --color-caution-600: #f0c876;
+
+  --color-alert-50: #2a1815;
+  --color-alert-400: #e07a6a;
+  --color-alert-600: #ef9a8c;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 24px -8px rgba(0, 0, 0, 0.45);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* Money figures: always tabular so digits don't jitter on updates */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
