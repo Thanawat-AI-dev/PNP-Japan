@@ -9,16 +9,17 @@ import { formatBaht } from "@/lib/utils";
 import { useAccount } from "@/lib/useAccount";
 import { useTransactions } from "@/lib/useTransactions";
 import { useGoals } from "@/lib/useGoals";
-import { useInterestPeriods } from "@/lib/useInterestPeriods";
+import { useInterestRateTiers } from "@/lib/useInterestRateTiers";
 import { computeBalance, computeDailyGrowth } from "@/lib/transactions";
 import { computeCurrentStreak, computeBestStreak } from "@/lib/streak";
 import { getLevelForBalance } from "@/lib/levels";
+import { periodContaining, estimatePeriodInterest } from "@/lib/interestAccrual";
 
 export function Dashboard() {
   const { account, loading: accountLoading } = useAccount();
   const { transactions, loading: txLoading } = useTransactions(account?.id);
   const { goals } = useGoals(account?.id);
-  const { periods } = useInterestPeriods(account?.id);
+  const { tiers } = useInterestRateTiers(account?.id);
 
   if (accountLoading || txLoading) {
     return (
@@ -44,7 +45,8 @@ export function Dashboard() {
   const level = getLevelForBalance(balance);
   const currentStreak = computeCurrentStreak(transactions);
   const bestStreak = computeBestStreak(transactions);
-  const openPeriod = periods.find((p) => p.actual_gross == null);
+  const currentPeriod = periodContaining(account.interest_payout ?? "semiannual", new Date());
+  const estimatedInterest = estimatePeriodInterest(transactions, tiers, currentPeriod);
   const tickInterval = Math.max(0, Math.ceil(growthHistory.length / 6) - 1);
 
   return (
@@ -79,9 +81,7 @@ export function Dashboard() {
           <Card className="p-4">
             <CardLabel>ดอกเบี้ยประเมินรอบนี้</CardLabel>
             <p className="tabular mt-1 text-xl font-bold text-growth-600">
-              {openPeriod?.estimated_gross != null
-                ? `+฿${formatBaht(openPeriod.estimated_gross)}`
-                : "ยังไม่มีข้อมูล"}
+              {tiers.length === 0 ? "ยังไม่ตั้งค่าอัตรา" : `+฿${formatBaht(estimatedInterest)}`}
             </p>
           </Card>
           <Card className="p-4">

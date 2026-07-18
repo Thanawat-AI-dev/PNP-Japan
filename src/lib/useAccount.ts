@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export interface Account {
@@ -17,25 +17,23 @@ export function useAccount() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    supabase
+  const refetch = useCallback(() => {
+    setLoading(true);
+    return supabase
       .from("accounts")
       .select("id, name, bank, owner_id, beneficiary_id, interest_payout, tax_enabled")
       .limit(1)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (cancelled) return;
         if (error) setError(error.message);
         setAccount(data);
         setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
-  return { account, loading, error };
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { account, loading, error, refetch };
 }

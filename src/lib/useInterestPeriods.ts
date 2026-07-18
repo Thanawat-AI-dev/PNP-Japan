@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export interface InterestPeriod {
@@ -7,6 +7,8 @@ export interface InterestPeriod {
   period_end: string;
   estimated_gross: number | null;
   actual_gross: number | null;
+  tax_withheld: number | null;
+  actual_net: number | null;
   variance_pct: number | null;
 }
 
@@ -15,26 +17,26 @@ export function useInterestPeriods(accountId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     if (!accountId) return;
-    let cancelled = false;
-
-    supabase
+    setLoading(true);
+    return supabase
       .from("interest_periods")
-      .select("id, period_start, period_end, estimated_gross, actual_gross, variance_pct")
+      .select(
+        "id, period_start, period_end, estimated_gross, actual_gross, tax_withheld, actual_net, variance_pct",
+      )
       .eq("account_id", accountId)
       .order("period_start", { ascending: false })
       .then(({ data, error }) => {
-        if (cancelled) return;
         if (error) setError(error.message);
         setPeriods(data ?? []);
         setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [accountId]);
 
-  return { periods, loading, error };
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { periods, loading, error, refetch };
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { tiersEffectiveOn } from "@/lib/interestAccrual";
 
 export interface RateTier {
   id: string;
@@ -39,15 +40,6 @@ export function useInterestRateTiers(accountId: string | undefined) {
   }, [refetch]);
 
   return { tiers, loading, refetch };
-}
-
-/** Tiers whose effective date range covers `date` (spec section 6.2). */
-function tiersEffectiveOn(tiers: RateTier[], date: Date): RateTier[] {
-  return tiers.filter((t) => {
-    const from = new Date(t.effective_from);
-    const to = t.effective_to ? new Date(t.effective_to) : null;
-    return date >= from && (!to || date <= to);
-  });
 }
 
 /**
