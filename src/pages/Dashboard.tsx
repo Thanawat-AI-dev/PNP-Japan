@@ -5,13 +5,47 @@ import { Card, CardLabel } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Badge } from "@/components/ui/Badge";
 import { formatBaht } from "@/lib/utils";
-import { account, goal, growthHistory, transactions, getLevelForBalance } from "@/lib/mockData";
+import { useAccount } from "@/lib/useAccount";
+import { useTransactions } from "@/lib/useTransactions";
+import { useGoal } from "@/lib/useGoal";
+import { useInterestPeriods } from "@/lib/useInterestPeriods";
+import { computeBalance, computeMonthlyGrowth } from "@/lib/transactions";
+import { computeCurrentStreak, computeBestStreak } from "@/lib/streak";
+import { getLevelForBalance } from "@/lib/levels";
 
 export function Dashboard() {
-  const goalPct = (goal.currentAmount / goal.targetAmount) * 100;
-  const onPacePct = (goal.onPaceAmount / goal.targetAmount) * 100;
-  const flagged = transactions.filter((t) => t.needsReview).length;
-  const level = getLevelForBalance(account.balance);
+  const { account, loading: accountLoading } = useAccount();
+  const { transactions, loading: txLoading } = useTransactions(account?.id);
+  const { goal } = useGoal(account?.id);
+  const { periods } = useInterestPeriods(account?.id);
+
+  if (accountLoading || txLoading) {
+    return (
+      <MobileShell title="SaveTogether">
+        <p className="py-12 text-center text-sm text-ink-muted">กำลังโหลด...</p>
+      </MobileShell>
+    );
+  }
+
+  if (!account) {
+    return (
+      <MobileShell title="SaveTogether">
+        <p className="py-12 text-center text-sm text-ink-muted">
+          ยังไม่พบบัญชีที่เชื่อมกับผู้ใช้นี้ ติดต่อ Admin เพื่อตั้งค่าบัญชี
+        </p>
+      </MobileShell>
+    );
+  }
+
+  const balance = computeBalance(transactions);
+  const growthHistory = computeMonthlyGrowth(transactions);
+  const flagged = transactions.filter((t) => t.needs_review).length;
+  const level = getLevelForBalance(balance);
+  const currentStreak = computeCurrentStreak(transactions);
+  const bestStreak = computeBestStreak(transactions);
+  const openPeriod = periods.find((p) => p.actual_gross == null);
+
+  const goalPct = goal ? (balance / goal.target_amount) * 100 : null;
 
   return (
     <MobileShell title="SaveTogether">
@@ -27,85 +61,94 @@ export function Dashboard() {
         <Card className="flex flex-col items-center text-center">
           <CardLabel>ยอดรวมทั้งหมด</CardLabel>
           <p className="tabular mt-1 text-[40px] font-extrabold leading-tight text-ink">
-            ฿{formatBaht(account.balance)}
+            ฿{formatBaht(balance)}
           </p>
           <div className="mt-3 flex items-center gap-2">
             <Badge tone="growth">
               {level.emoji} {level.name}
             </Badge>
-            <Badge tone="trust">
-              <Flame className="h-3.5 w-3.5" /> {account.currentStreak} เดือนติด
-            </Badge>
+            {currentStreak > 0 && (
+              <Badge tone="trust">
+                <Flame className="h-3.5 w-3.5" /> {currentStreak} เดือนติด
+              </Badge>
+            )}
           </div>
         </Card>
 
         <div className="grid grid-cols-2 gap-3">
           <Card className="p-4">
-            <CardLabel>ดอกเบี้ยสะสมรอบนี้</CardLabel>
+            <CardLabel>ดอกเบี้ยประเมินรอบนี้</CardLabel>
             <p className="tabular mt-1 text-xl font-bold text-growth-600">
-              +฿{formatBaht(account.interestAccruedThisPeriod)}
+              {openPeriod?.estimated_gross != null
+                ? `+฿${formatBaht(openPeriod.estimated_gross)}`
+                : "ยังไม่มีข้อมูล"}
             </p>
           </Card>
           <Card className="p-4">
             <CardLabel>Best streak</CardLabel>
-            <p className="tabular mt-1 text-xl font-bold text-ink">
-              {account.bestStreak} เดือน
-            </p>
+            <p className="tabular mt-1 text-xl font-bold text-ink">{bestStreak} เดือน</p>
           </Card>
         </div>
 
-        <Card>
-          <div className="flex items-baseline justify-between">
-            <CardLabel>เป้าหมาย: {goal.title}</CardLabel>
-            <span className="text-xs font-semibold text-ink-muted">
-              {goalPct.toFixed(1)}%
-            </span>
-          </div>
-          <p className="tabular mt-1 text-sm text-ink">
-            {formatBaht(goal.currentAmount)} / {formatBaht(goal.targetAmount)} บาท
-          </p>
-          <ProgressBar value={goalPct} ghostValue={onPacePct} className="mt-3" />
-          <p className="mt-2 text-xs text-ink-faint">
-            เส้นเทา = ควรอยู่ตรงนี้ถ้าอยากถึงเป้าตามกำหนด
-          </p>
-        </Card>
+        {goal && goalPct != null ? (
+          <Card>
+            <div className="flex items-baseline justify-between">
+              <CardLabel>เป้าหมาย: {goal.title}</CardLabel>
+              <span className="text-xs font-semibold text-ink-muted">{goalPct.toFixed(1)}%</span>
+            </div>
+            <p className="tabular mt-1 text-sm text-ink">
+              {formatBaht(balance)} / {formatBaht(goal.target_amount)} บาท
+            </p>
+            <ProgressBar value={goalPct} className="mt-3" />
+          </Card>
+        ) : (
+          <Card className="text-center text-sm text-ink-muted">
+            ยังไม่มีเป้าหมาย — ตั้งได้ที่หน้าเป้าหมาย
+          </Card>
+        )}
 
         <Card>
           <CardLabel>การเติบโตของยอดเงิน</CardLabel>
-          <div className="-mx-2 mt-2 h-36">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={growthHistory} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="var(--color-growth-500)" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="var(--color-growth-500)" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="month"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fontSize: 11, fill: "var(--color-ink-faint)" }}
-                />
-                <Tooltip
-                  formatter={(v) => [`฿${formatBaht(Number(v))}`, "ยอดรวม"]}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid var(--color-line)",
-                    background: "var(--color-surface)",
-                    fontSize: 13,
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="balance"
-                  stroke="var(--color-growth-500)"
-                  strokeWidth={2.5}
-                  fill="url(#growthFill)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+          {growthHistory.length === 0 ? (
+            <p className="py-10 text-center text-sm text-ink-muted">
+              ยังไม่มีรายการ — แนบสลิปแรกเพื่อเริ่มติดตาม
+            </p>
+          ) : (
+            <div className="-mx-2 mt-2 h-36">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={growthHistory} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="var(--color-growth-500)" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="var(--color-growth-500)" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fontSize: 11, fill: "var(--color-ink-faint)" }}
+                  />
+                  <Tooltip
+                    formatter={(v) => [`฿${formatBaht(Number(v))}`, "ยอดรวม"]}
+                    contentStyle={{
+                      borderRadius: 12,
+                      border: "1px solid var(--color-line)",
+                      background: "var(--color-surface)",
+                      fontSize: 13,
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="balance"
+                    stroke="var(--color-growth-500)"
+                    strokeWidth={2.5}
+                    fill="url(#growthFill)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </Card>
       </div>
     </MobileShell>
