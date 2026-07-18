@@ -17,6 +17,10 @@ dist-ssr
 # name and partial account numbers, not meant to be pushed anywhere.
 /Slip-Test/
 
+# Database backups/exports - contain real user data (emails, balances). Local
+# safety net only, never pushed.
+/backups/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
