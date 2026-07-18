@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
+import { AccountProvider } from "@/lib/useAccount";
+import { ProfileProvider } from "@/lib/useProfile";
 import { RequireAuth } from "@/components/RequireAuth";
 import { RequireAdmin } from "@/components/RequireAdmin";
 
@@ -38,115 +40,119 @@ function RouteFallback() {
 function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <Dashboard />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/add-slip"
-              element={
-                <RequireAuth>
-                  <AddSlip />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/history"
-              element={
-                <RequireAuth>
-                  <History />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/goals"
-              element={
-                <RequireAuth>
-                  <Goals />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/achievements"
-              element={
-                <RequireAuth>
-                  <Achievements />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <RequireAuth>
-                  <Settings />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/interest"
-              element={
-                <RequireAuth>
-                  <Interest />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/reconciliation"
-              element={
-                <RequireAuth>
-                  <RequireAdmin>
-                    <Reconciliation />
-                  </RequireAdmin>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/audit-log"
-              element={
-                <RequireAuth>
-                  <AuditLog />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/admin"
-              element={
-                <RequireAuth>
-                  <RequireAdmin>
-                    <Admin />
-                  </RequireAdmin>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/interest-rates"
-              element={
-                <RequireAuth>
-                  <RequireAdmin>
-                    <InterestRates />
-                  </RequireAdmin>
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/style-guide"
-              element={
-                <RequireAuth>
-                  <StyleGuide />
-                </RequireAuth>
-              }
-            />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
+      <ProfileProvider>
+        <AccountProvider>
+          <BrowserRouter>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route
+                  path="/"
+                  element={
+                    <RequireAuth>
+                      <Dashboard />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/add-slip"
+                  element={
+                    <RequireAuth>
+                      <AddSlip />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/history"
+                  element={
+                    <RequireAuth>
+                      <History />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/goals"
+                  element={
+                    <RequireAuth>
+                      <Goals />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/achievements"
+                  element={
+                    <RequireAuth>
+                      <Achievements />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <RequireAuth>
+                      <Settings />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/interest"
+                  element={
+                    <RequireAuth>
+                      <Interest />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/reconciliation"
+                  element={
+                    <RequireAuth>
+                      <RequireAdmin>
+                        <Reconciliation />
+                      </RequireAdmin>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/audit-log"
+                  element={
+                    <RequireAuth>
+                      <AuditLog />
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <RequireAuth>
+                      <RequireAdmin>
+                        <Admin />
+                      </RequireAdmin>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/interest-rates"
+                  element={
+                    <RequireAuth>
+                      <RequireAdmin>
+                        <InterestRates />
+                      </RequireAdmin>
+                    </RequireAuth>
+                  }
+                />
+                <Route
+                  path="/style-guide"
+                  element={
+                    <RequireAuth>
+                      <StyleGuide />
+                    </RequireAuth>
+                  }
+                />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </AccountProvider>
+      </ProfileProvider>
     </AuthProvider>
   );
 }
