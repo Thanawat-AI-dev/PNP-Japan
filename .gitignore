@@ -30,3 +30,8 @@ dist-ssr
 
 .vercel
 .env*
+
+# Regenerable via `npx skills experimental_install` from skills-lock.json.
+# .claude/skills symlinks use absolute paths, so they don't survive a clone.
+.claude/skills
+.agents/skills
