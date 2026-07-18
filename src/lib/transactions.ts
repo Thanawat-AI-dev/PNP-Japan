@@ -10,6 +10,7 @@ export interface Transaction {
   cancel_requested: boolean;
   created_by: string | null;
   created_at: string;
+  slip_path: string | null;
 }
 
 const THAI_MONTHS_SHORT = [

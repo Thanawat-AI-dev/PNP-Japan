@@ -48,7 +48,7 @@ export function Settings() {
             <p className="text-xs text-ink-faint">{session.user.email}</p>
             {profile && (
               <Badge tone={isAdmin ? "growth" : "trust"} className="mt-2">
-                {isAdmin ? "Admin" : "Friend"}
+                {isAdmin ? "Admin" : "หมวย"}
               </Badge>
             )}
           </Card>

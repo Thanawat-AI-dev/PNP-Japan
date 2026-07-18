@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, TriangleAlert, Pencil, Trash2, Ban } from "lucide-react";
+import { Download, TriangleAlert, Pencil, Ban } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -20,17 +20,18 @@ const typeLabel: Record<string, string> = {
   adjustment: "ปรับปรุง",
 };
 
-const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
-
 function downloadCsv(
   transactions: { type: string; amount_cents: number; occurred_at: string; note: string | null }[],
 ) {
   const header = "type,amount,occurred_at,note";
-  const rows = transactions.map((t) =>
-    [typeLabel[t.type], (t.amount_cents / 100).toFixed(2), t.occurred_at, t.note ?? ""]
+  const rows = transactions.map((t) => {
+    // Signed so the amount column sums to the real balance, matching the
+    // same convention as computeBalance (withdrawals subtract).
+    const signedAmount = (t.type === "withdrawal" ? -t.amount_cents : t.amount_cents) / 100;
+    return [typeLabel[t.type], signedAmount.toFixed(2), t.occurred_at, t.note ?? ""]
       .map((cell) => `"${String(cell).replace(/"/g, '""')}"`)
-      .join(","),
-  );
+      .join(",");
+  });
   const csv = [header, ...rows].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -101,9 +102,11 @@ function TransactionRow({
   const [error, setError] = useState<string | null>(null);
 
   const isOwn = t.created_by === myId;
-  const withinWindow = new Date(t.created_at).getTime() > Date.now() - EDIT_WINDOW_MS;
-  const canEdit = isAdmin || (isOwn && withinWindow);
-  const canRequestCancel = !isAdmin && isOwn && !withinWindow && !t.cancel_requested;
+  // Admin can always edit. A friend can only shape a transaction before
+  // confirming it (in the add-slip flow itself) - once it's saved, their
+  // only option is requesting cancellation, never a direct edit.
+  const canEdit = isAdmin;
+  const canRequestCancel = !isAdmin && isOwn && !t.cancel_requested;
 
   async function saveEdit() {
     setSaving(true);
@@ -123,19 +126,6 @@ function TransactionRow({
       return;
     }
     setEditing(false);
-    onChanged();
-  }
-
-  async function handleDelete() {
-    if (!confirm("ลบรายการนี้ทิ้ง? ไม่สามารถกู้คืนได้")) return;
-    setSaving(true);
-    setError(null);
-    const { error } = await supabase.from("transactions").delete().eq("id", t.id);
-    setSaving(false);
-    if (error) {
-      setError(error.message);
-      return;
-    }
     onChanged();
   }
 
@@ -232,7 +222,7 @@ function TransactionRow({
         </div>
         <p
           className={`tabular text-base font-bold ${
-            t.type === "withdrawal" ? "text-ink" : "text-growth-600"
+            t.type === "withdrawal" ? "text-alert-600" : "text-growth-600"
           }`}
         >
           {t.type === "withdrawal" ? "-" : "+"}฿{formatBaht(t.amount_cents / 100)}
@@ -244,11 +234,6 @@ function TransactionRow({
           {canEdit && (
             <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
               <Pencil className="h-3.5 w-3.5" /> แก้ไข
-            </Button>
-          )}
-          {isAdmin && (
-            <Button variant="outline" size="sm" disabled={saving} onClick={handleDelete}>
-              <Trash2 className="h-3.5 w-3.5" /> ลบ
             </Button>
           )}
           {canRequestCancel && (

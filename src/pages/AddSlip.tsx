@@ -24,28 +24,30 @@ export function AddSlip() {
 
   return (
     <MobileShell title="เพิ่มรายการ" hideFab>
-      <div className="mb-4 flex rounded-[var(--radius-control)] bg-surface-sunken p-1">
-        <button
-          type="button"
-          onClick={() => setMode("slip")}
-          className={`flex-1 rounded-[calc(var(--radius-control)-4px)] py-2 text-sm font-medium transition-colors ${
-            mode === "slip" ? "bg-surface text-ink shadow-sm" : "text-ink-muted"
-          }`}
-        >
-          แนบสลิป
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("manual")}
-          className={`flex-1 rounded-[calc(var(--radius-control)-4px)] py-2 text-sm font-medium transition-colors ${
-            mode === "manual" ? "bg-surface text-ink shadow-sm" : "text-ink-muted"
-          }`}
-        >
-          กรอกเอง
-        </button>
-      </div>
+      {isAdmin && (
+        <div className="mb-4 flex rounded-[var(--radius-control)] bg-surface-sunken p-1">
+          <button
+            type="button"
+            onClick={() => setMode("slip")}
+            className={`flex-1 rounded-[calc(var(--radius-control)-4px)] py-2 text-sm font-medium transition-colors ${
+              mode === "slip" ? "bg-surface text-ink shadow-sm" : "text-ink-muted"
+            }`}
+          >
+            แนบสลิป
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("manual")}
+            className={`flex-1 rounded-[calc(var(--radius-control)-4px)] py-2 text-sm font-medium transition-colors ${
+              mode === "manual" ? "bg-surface text-ink shadow-sm" : "text-ink-muted"
+            }`}
+          >
+            กรอกเอง
+          </button>
+        </div>
+      )}
 
-      {mode === "slip" ? <SlipForm /> : <ManualForm isAdmin={isAdmin} />}
+      {mode === "slip" || !isAdmin ? <SlipForm /> : <ManualForm isAdmin={isAdmin} />}
     </MobileShell>
   );
 }

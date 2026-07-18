@@ -136,9 +136,10 @@ function GoalCard({
   const [title, setTitle] = useState(goal.title);
   const [targetAmount, setTargetAmount] = useState(String(goal.target_amount));
   const [targetDate, setTargetDate] = useState(goal.target_date ?? "");
-  const [allocatedInput, setAllocatedInput] = useState(String(goal.allocated_amount));
+  const [allocatedInput, setAllocatedInput] = useState("0");
   const [monthlyDeposit, setMonthlyDeposit] = useState(2_000);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const goalPct = (goal.allocated_amount / goal.target_amount) * 100;
@@ -164,27 +165,30 @@ function GoalCard({
   }
 
   async function saveAllocation() {
-    const newAmount = Number(allocatedInput);
-    if (newAmount < goal.allocated_amount) {
-      setError("ลดยอดจัดสรรไม่ได้ - จัดสรรเพิ่มได้อย่างเดียว ถ้าจะนำเงินออกให้ลบเป้าหมายนี้แทน");
+    const addAmount = Number(allocatedInput);
+    setError(null);
+    setSuccess(null);
+    if (!addAmount || addAmount <= 0) {
+      setError("กรอกจำนวนที่จะจัดสรรเพิ่ม");
       return;
     }
-    const roomAvailable = unallocated + goal.allocated_amount;
-    if (newAmount > roomAvailable) {
-      setError(`จัดสรรได้ไม่เกิน ฿${formatBaht(roomAvailable)} (ยอดที่เหลือ)`);
+    if (addAmount > unallocated) {
+      setError(`จัดสรรเพิ่มได้ไม่เกิน ฿${formatBaht(unallocated)} (ยอดที่ยังไม่จัดสรร)`);
       return;
     }
     setSaving(true);
-    setError(null);
     const { error } = await supabase
       .from("goals")
-      .update({ allocated_amount: newAmount })
+      .update({ allocated_amount: goal.allocated_amount + addAmount })
       .eq("id", goal.id);
     setSaving(false);
     if (error) {
       setError(error.message);
       return;
     }
+    setAllocatedInput("0");
+    setSuccess(`จัดสรรสำเร็จ +฿${formatBaht(addAmount)}`);
+    setTimeout(() => setSuccess(null), 3000);
     onChanged();
   }
 
@@ -284,12 +288,15 @@ function GoalCard({
 
       <div className="mt-3 flex items-end gap-2">
         <div className="flex-1">
-          <label className="text-xs font-medium text-ink-muted">จัดสรรเงินให้เป้าหมายนี้</label>
+          <label className="text-xs font-medium text-ink-muted">จัดสรรเพิ่มให้เป้าหมายนี้ (บาท)</label>
           <Input
             className="mt-1"
             inputMode="decimal"
             value={allocatedInput}
-            onChange={(e) => setAllocatedInput(e.target.value)}
+            onChange={(e) => {
+              setAllocatedInput(e.target.value);
+              setSuccess(null);
+            }}
           />
         </div>
         <Button size="sm" disabled={saving} onClick={saveAllocation}>
@@ -297,6 +304,7 @@ function GoalCard({
         </Button>
       </div>
       {error && <p className="mt-1 text-xs text-alert-600">{error}</p>}
+      {success && <p className="mt-1 text-xs font-medium text-growth-600">{success}</p>}
 
       <button
         type="button"

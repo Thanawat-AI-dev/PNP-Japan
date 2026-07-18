@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TriangleAlert, Ban, Check, X } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card } from "@/components/ui/Card";
@@ -64,6 +64,42 @@ export function Admin() {
   );
 }
 
+function SlipThumbnail({ path }: { path: string | null }) {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!path) return;
+    let cancelled = false;
+    supabase.storage
+      .from("slips")
+      .createSignedUrl(path, 60)
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error(error);
+          return;
+        }
+        setUrl(data?.signedUrl ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  if (!path) return null;
+  if (!url) return <p className="mt-2 text-xs text-ink-faint">กำลังโหลดรูปสลิป...</p>;
+
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="mt-2 block">
+      <img
+        src={url}
+        alt="สลิป"
+        className="max-h-56 w-full rounded-[var(--radius-control)] border border-line object-contain"
+      />
+    </a>
+  );
+}
+
 function CancelRequestRow({ transaction: t, onChanged }: { transaction: Transaction; onChanged: () => void }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +133,7 @@ function CancelRequestRow({ transaction: t, onChanged }: { transaction: Transact
         ฿{formatBaht(t.amount_cents / 100)} · {formatThaiDate(new Date(t.occurred_at))}
         {t.note ? ` · ${t.note}` : ""}
       </p>
+      <SlipThumbnail path={t.slip_path} />
       {error && <p className="mt-1 text-xs text-alert-600">{error}</p>}
       <div className="mt-3 flex gap-2">
         <Button variant="outline" size="sm" disabled={saving} onClick={deny} className="flex-1">
@@ -205,6 +242,7 @@ function ReviewRow({ transaction: t, onChanged }: { transaction: Transaction; on
         </div>
         <Badge tone="caution">รอตรวจสอบ</Badge>
       </div>
+      <SlipThumbnail path={t.slip_path} />
       {error && <p className="mt-1 text-xs text-alert-600">{error}</p>}
       <div className="mt-3 flex gap-2">
         <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="flex-1">

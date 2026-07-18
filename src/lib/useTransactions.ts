@@ -13,7 +13,7 @@ export function useTransactions(accountId: string | undefined) {
     return supabase
       .from("transactions")
       .select(
-        "id, type, amount_cents, occurred_at, note, needs_review, cancel_requested, created_by, created_at",
+        "id, type, amount_cents, occurred_at, note, needs_review, cancel_requested, created_by, created_at, slip_path",
       )
       .eq("account_id", accountId)
       .order("occurred_at", { ascending: false })
