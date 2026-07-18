@@ -3,12 +3,15 @@ import { LineChart, Line, XAxis, ResponsiveContainer } from "recharts";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card, CardLabel } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 import { formatBaht } from "@/lib/utils";
 import { useAccount } from "@/lib/useAccount";
 import { useTransactions } from "@/lib/useTransactions";
 import { useGoal } from "@/lib/useGoal";
 import { useInterestRateTiers, calcEffectiveAnnualRate } from "@/lib/useInterestRateTiers";
 import { computeBalance, computeMonthlyGrowth } from "@/lib/transactions";
+import { supabase } from "@/lib/supabase";
 
 const THAI_MONTHS_SHORT = [
   "ม.ค.",
@@ -59,7 +62,7 @@ function projectForward(
 export function Goals() {
   const { account } = useAccount();
   const { transactions } = useTransactions(account?.id);
-  const { goal } = useGoal(account?.id);
+  const { goal, refetch: refetchGoal } = useGoal(account?.id);
   const { tiers } = useInterestRateTiers(account?.id);
   const [monthlyDeposit, setMonthlyDeposit] = useState(8_500);
 
@@ -82,7 +85,7 @@ export function Goals() {
   if (!goal) {
     return (
       <MobileShell title="เป้าหมาย">
-        <p className="py-12 text-center text-sm text-ink-muted">ยังไม่มีเป้าหมาย</p>
+        <NewGoalForm accountId={account?.id} onCreated={refetchGoal} />
       </MobileShell>
     );
   }
@@ -160,5 +163,83 @@ export function Goals() {
         </Card>
       </div>
     </MobileShell>
+  );
+}
+
+function NewGoalForm({ accountId, onCreated }: { accountId: string | undefined; onCreated: () => void }) {
+  const [title, setTitle] = useState("");
+  const [targetAmount, setTargetAmount] = useState("");
+  const [targetDate, setTargetDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!accountId || !title || !targetAmount) return;
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase.from("goals").insert({
+      account_id: accountId,
+      title,
+      target_amount: Number(targetAmount),
+      target_date: targetDate || null,
+    });
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    onCreated();
+  }
+
+  return (
+    <Card>
+      <CardLabel>ตั้งเป้าหมายใหม่</CardLabel>
+      <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-3">
+        <div>
+          <label className="text-sm font-medium text-ink" htmlFor="goal-title">
+            ชื่อเป้าหมาย
+          </label>
+          <Input
+            id="goal-title"
+            className="mt-1"
+            placeholder="เช่น ดาวน์คอนโด"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-ink" htmlFor="goal-amount">
+            ยอดเป้าหมาย (บาท)
+          </label>
+          <Input
+            id="goal-amount"
+            className="mt-1"
+            inputMode="decimal"
+            placeholder="500000"
+            value={targetAmount}
+            onChange={(e) => setTargetAmount(e.target.value)}
+            required
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium text-ink" htmlFor="goal-date">
+            วันที่ต้องการถึง (ไม่บังคับ)
+          </label>
+          <Input
+            id="goal-date"
+            type="date"
+            className="mt-1"
+            value={targetDate}
+            onChange={(e) => setTargetDate(e.target.value)}
+          />
+        </div>
+        {error && <p className="text-sm text-alert-600">{error}</p>}
+        <Button type="submit" size="lg" className="mt-2" disabled={saving || !accountId}>
+          {saving ? "กำลังบันทึก..." : "ตั้งเป้าหมาย"}
+        </Button>
+      </form>
+    </Card>
   );
 }

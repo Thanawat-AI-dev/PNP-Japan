@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export interface Goal {
@@ -13,11 +13,10 @@ export function useGoal(accountId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     if (!accountId) return;
-    let cancelled = false;
-
-    supabase
+    setLoading(true);
+    return supabase
       .from("goals")
       .select("id, title, target_amount, target_date")
       .eq("account_id", accountId)
@@ -26,16 +25,15 @@ export function useGoal(accountId: string | undefined) {
       .limit(1)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (cancelled) return;
         if (error) setError(error.message);
         setGoal(data);
         setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [accountId]);
 
-  return { goal, loading, error };
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { goal, loading, error, refetch };
 }
