@@ -34,25 +34,53 @@ export function computeBalance(transactions: Transaction[]): number {
   return totalCents / 100;
 }
 
-/** One point per calendar month that had activity, with the running (cumulative) balance as of that month. */
-export function computeMonthlyGrowth(
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/**
+ * One point per calendar day (not month) from the earlier of "first
+ * transaction" or `windowDays` ago, through today, carrying the running
+ * balance forward on days with no activity. Capped to `windowDays` (default
+ * 90) so the chart stays readable once history builds up.
+ */
+export function computeDailyGrowth(
   transactions: Transaction[],
-): { month: string; balance: number }[] {
+  windowDays = 90,
+): { date: string; balance: number }[] {
+  if (transactions.length === 0) return [];
+
   const sorted = [...transactions].sort(
     (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime(),
   );
 
-  const byMonth = new Map<string, number>();
-  let running = 0;
-  for (const t of sorted) {
-    running += signedAmount(t);
-    const d = new Date(t.occurred_at);
-    const key = `${d.getFullYear()}-${d.getMonth()}`;
-    byMonth.set(key, running);
+  const today = startOfDay(new Date());
+  const firstTxnDay = startOfDay(new Date(sorted[0].occurred_at));
+  const earliestWindowStart = new Date(today);
+  earliestWindowStart.setDate(earliestWindowStart.getDate() - (windowDays - 1));
+  const start = firstTxnDay > earliestWindowStart ? firstTxnDay : earliestWindowStart;
+
+  // Balance carried in from before the visible window.
+  let running = sorted
+    .filter((t) => startOfDay(new Date(t.occurred_at)) < start)
+    .reduce((sum, t) => sum + signedAmount(t), 0);
+
+  let txnIndex = sorted.findIndex((t) => startOfDay(new Date(t.occurred_at)) >= start);
+  if (txnIndex === -1) txnIndex = sorted.length;
+
+  const points: { date: string; balance: number }[] = [];
+  const cursor = new Date(start);
+  while (cursor <= today) {
+    while (txnIndex < sorted.length && startOfDay(new Date(sorted[txnIndex].occurred_at)).getTime() === cursor.getTime()) {
+      running += signedAmount(sorted[txnIndex]);
+      txnIndex++;
+    }
+    points.push({
+      date: `${cursor.getDate()} ${THAI_MONTHS_SHORT[cursor.getMonth()]}`,
+      balance: running / 100,
+    });
+    cursor.setDate(cursor.getDate() + 1);
   }
 
-  return [...byMonth.entries()].map(([key, cents]) => {
-    const [, monthIndex] = key.split("-").map(Number);
-    return { month: THAI_MONTHS_SHORT[monthIndex], balance: cents / 100 };
-  });
+  return points;
 }

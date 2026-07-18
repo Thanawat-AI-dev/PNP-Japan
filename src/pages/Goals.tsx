@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Pencil, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { LineChart, Line, XAxis, ResponsiveContainer } from "recharts";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card, CardLabel } from "@/components/ui/Card";
@@ -8,9 +9,9 @@ import { Button } from "@/components/ui/Button";
 import { formatBaht } from "@/lib/utils";
 import { useAccount } from "@/lib/useAccount";
 import { useTransactions } from "@/lib/useTransactions";
-import { useGoal } from "@/lib/useGoal";
+import { useGoals, type Goal } from "@/lib/useGoals";
 import { useInterestRateTiers, calcEffectiveAnnualRate } from "@/lib/useInterestRateTiers";
-import { computeBalance, computeMonthlyGrowth } from "@/lib/transactions";
+import { computeBalance } from "@/lib/transactions";
 import { supabase } from "@/lib/supabase";
 
 const THAI_MONTHS_SHORT = [
@@ -62,53 +63,222 @@ function projectForward(
 export function Goals() {
   const { account } = useAccount();
   const { transactions } = useTransactions(account?.id);
-  const { goal, refetch: refetchGoal } = useGoal(account?.id);
+  const { goals, refetch } = useGoals(account?.id);
   const { tiers } = useInterestRateTiers(account?.id);
-  const [monthlyDeposit, setMonthlyDeposit] = useState(8_500);
+  const [showNewForm, setShowNewForm] = useState(false);
 
   const balance = computeBalance(transactions);
-  const pastGrowth = computeMonthlyGrowth(transactions);
   const annualRate = calcEffectiveAnnualRate(balance, tiers);
-
-  const months = useMemo(
-    () =>
-      goal ? monthsToGoal(balance, goal.target_amount, monthlyDeposit, annualRate) : 0,
-    [balance, goal, monthlyDeposit, annualRate],
-  );
-
-  const forecast = useMemo(() => {
-    const projectionMonths = Math.min(months === Infinity ? 12 : months, 60);
-    const projected = projectForward(balance, monthlyDeposit, annualRate, projectionMonths, new Date());
-    return [...pastGrowth, ...projected];
-  }, [balance, monthlyDeposit, annualRate, months, pastGrowth]);
-
-  if (!goal) {
-    return (
-      <MobileShell title="เป้าหมาย">
-        <NewGoalForm accountId={account?.id} onCreated={refetchGoal} />
-      </MobileShell>
-    );
-  }
-
-  const goalPct = (balance / goal.target_amount) * 100;
+  const totalAllocated = goals.reduce((sum, g) => sum + g.allocated_amount, 0);
+  const unallocated = balance - totalAllocated;
 
   return (
     <MobileShell title="เป้าหมาย">
       <div className="flex flex-col gap-4">
-        <Card>
-          <div className="flex items-baseline justify-between">
-            <CardLabel>{goal.title}</CardLabel>
-            <span className="text-xs font-semibold text-ink-muted">{goalPct.toFixed(1)}%</span>
-          </div>
-          <p className="tabular mt-1 text-lg font-bold text-ink">
-            {formatBaht(balance)} / {formatBaht(goal.target_amount)} บาท
-          </p>
-          <ProgressBar value={goalPct} className="mt-3" />
-        </Card>
+        {goals.length > 0 && (
+          <Card className="p-4">
+            <CardLabel>ยอดที่ยังไม่จัดสรร</CardLabel>
+            <p
+              className={`tabular mt-1 text-xl font-bold ${
+                unallocated < 0 ? "text-alert-600" : "text-ink"
+              }`}
+            >
+              ฿{formatBaht(unallocated)}
+            </p>
+            <p className="mt-0.5 text-xs text-ink-muted">
+              จากยอดรวม ฿{formatBaht(balance)} · จัดสรรแล้ว ฿{formatBaht(totalAllocated)}
+            </p>
+          </Card>
+        )}
 
-        <Card>
-          <CardLabel>กราฟพยากรณ์ถึงเป้าหมาย</CardLabel>
-          <div className="-mx-2 mt-2 h-40">
+        {goals.map((goal) => (
+          <GoalCard
+            key={goal.id}
+            goal={goal}
+            unallocated={unallocated}
+            annualRate={annualRate}
+            onChanged={refetch}
+          />
+        ))}
+
+        {showNewForm || goals.length === 0 ? (
+          <NewGoalForm
+            accountId={account?.id}
+            onCreated={() => {
+              setShowNewForm(false);
+              refetch();
+            }}
+            onCancel={goals.length > 0 ? () => setShowNewForm(false) : undefined}
+          />
+        ) : (
+          <Button variant="outline" size="lg" onClick={() => setShowNewForm(true)}>
+            <Plus className="h-4 w-4" /> เพิ่มเป้าหมายใหม่
+          </Button>
+        )}
+      </div>
+    </MobileShell>
+  );
+}
+
+function GoalCard({
+  goal,
+  unallocated,
+  annualRate,
+  onChanged,
+}: {
+  goal: Goal;
+  unallocated: number;
+  annualRate: number;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [showForecast, setShowForecast] = useState(false);
+  const [title, setTitle] = useState(goal.title);
+  const [targetAmount, setTargetAmount] = useState(String(goal.target_amount));
+  const [targetDate, setTargetDate] = useState(goal.target_date ?? "");
+  const [allocatedInput, setAllocatedInput] = useState(String(goal.allocated_amount));
+  const [monthlyDeposit, setMonthlyDeposit] = useState(2_000);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const goalPct = (goal.allocated_amount / goal.target_amount) * 100;
+
+  async function saveEdit() {
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase
+      .from("goals")
+      .update({
+        title,
+        target_amount: Number(targetAmount),
+        target_date: targetDate || null,
+      })
+      .eq("id", goal.id);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setEditing(false);
+    onChanged();
+  }
+
+  async function saveAllocation() {
+    const newAmount = Number(allocatedInput);
+    const roomAvailable = unallocated + goal.allocated_amount;
+    if (newAmount > roomAvailable) {
+      setError(`จัดสรรได้ไม่เกิน ฿${formatBaht(roomAvailable)} (ยอดที่เหลือ)`);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase
+      .from("goals")
+      .update({ allocated_amount: newAmount })
+      .eq("id", goal.id);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    onChanged();
+  }
+
+  const months = monthsToGoal(goal.allocated_amount, goal.target_amount, monthlyDeposit, annualRate);
+  const forecast = useMemo(() => {
+    if (!showForecast) return [];
+    const projectionMonths = Math.min(months === Infinity ? 12 : months, 60);
+    return projectForward(goal.allocated_amount, monthlyDeposit, annualRate, projectionMonths, new Date());
+  }, [showForecast, goal.allocated_amount, monthlyDeposit, annualRate, months]);
+
+  if (editing) {
+    return (
+      <Card>
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="text-sm font-medium text-ink">ชื่อเป้าหมาย</label>
+            <Input className="mt-1" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-ink">ยอดเป้าหมาย (บาท)</label>
+            <Input
+              className="mt-1"
+              inputMode="decimal"
+              value={targetAmount}
+              onChange={(e) => setTargetAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-ink">วันที่ต้องการถึง</label>
+            <Input
+              type="date"
+              className="mt-1"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+            />
+          </div>
+          {error && <p className="text-sm text-alert-600">{error}</p>}
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditing(false)}>
+              ยกเลิก
+            </Button>
+            <Button className="flex-1" disabled={saving} onClick={saveEdit}>
+              บันทึก
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <div className="flex items-baseline justify-between">
+        <CardLabel>{goal.title}</CardLabel>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-ink-muted">{goalPct.toFixed(1)}%</span>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-ink-faint hover:text-ink"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+      <p className="tabular mt-1 text-lg font-bold text-ink">
+        {formatBaht(goal.allocated_amount)} / {formatBaht(goal.target_amount)} บาท
+      </p>
+      <ProgressBar value={goalPct} className="mt-3" />
+
+      <div className="mt-3 flex items-end gap-2">
+        <div className="flex-1">
+          <label className="text-xs font-medium text-ink-muted">จัดสรรเงินให้เป้าหมายนี้</label>
+          <Input
+            className="mt-1"
+            inputMode="decimal"
+            value={allocatedInput}
+            onChange={(e) => setAllocatedInput(e.target.value)}
+          />
+        </div>
+        <Button size="sm" disabled={saving} onClick={saveAllocation}>
+          จัดสรร
+        </Button>
+      </div>
+      {error && <p className="mt-1 text-xs text-alert-600">{error}</p>}
+
+      <button
+        type="button"
+        onClick={() => setShowForecast((v) => !v)}
+        className="mt-3 flex w-full items-center justify-center gap-1 text-xs font-medium text-growth-600"
+      >
+        {showForecast ? "ซ่อนพยากรณ์" : "ดูพยากรณ์"}
+        {showForecast ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+      </button>
+
+      {showForecast && (
+        <div className="mt-3">
+          <div className="-mx-2 h-32">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={forecast} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                 <XAxis
@@ -127,19 +297,17 @@ export function Goals() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-
-          <div className="mt-3 flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-ink" htmlFor="deposit-slider">
-              ถ้าฝากเดือนละ{" "}
+          <div className="mt-2 flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-ink">
+              ถ้าจัดสรรเพิ่มเดือนละ{" "}
               <span className="tabular font-bold text-growth-600">
                 ฿{formatBaht(monthlyDeposit)}
               </span>
             </label>
             <input
-              id="deposit-slider"
               type="range"
               min={0}
-              max={20_000}
+              max={10_000}
               step={500}
               value={monthlyDeposit}
               onChange={(e) => setMonthlyDeposit(Number(e.target.value))}
@@ -147,26 +315,29 @@ export function Goals() {
             />
             <p className="text-sm text-ink-muted">
               {months === Infinity ? (
-                "เพิ่มยอดฝากต่อเดือนเพื่อดูวันที่คาดว่าจะถึงเป้าหมาย"
+                "เพิ่มยอดจัดสรรต่อเดือนเพื่อดูวันที่คาดว่าจะถึงเป้าหมาย"
               ) : (
                 <>
                   จะถึงเป้าหมายในอีก <span className="font-semibold text-ink">{months}</span> เดือน
                 </>
               )}
             </p>
-            {annualRate === 0 && (
-              <p className="text-xs text-ink-faint">
-                * ยังไม่ได้ตั้งค่าอัตราดอกเบี้ย คำนวณนี้ยังไม่รวมดอกเบี้ยทบต้น
-              </p>
-            )}
           </div>
-        </Card>
-      </div>
-    </MobileShell>
+        </div>
+      )}
+    </Card>
   );
 }
 
-function NewGoalForm({ accountId, onCreated }: { accountId: string | undefined; onCreated: () => void }) {
+function NewGoalForm({
+  accountId,
+  onCreated,
+  onCancel,
+}: {
+  accountId: string | undefined;
+  onCreated: () => void;
+  onCancel?: () => void;
+}) {
   const [title, setTitle] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
   const [targetDate, setTargetDate] = useState("");
@@ -236,9 +407,16 @@ function NewGoalForm({ accountId, onCreated }: { accountId: string | undefined; 
           />
         </div>
         {error && <p className="text-sm text-alert-600">{error}</p>}
-        <Button type="submit" size="lg" className="mt-2" disabled={saving || !accountId}>
-          {saving ? "กำลังบันทึก..." : "ตั้งเป้าหมาย"}
-        </Button>
+        <div className="mt-2 flex gap-2">
+          {onCancel && (
+            <Button type="button" variant="outline" className="flex-1" onClick={onCancel}>
+              ยกเลิก
+            </Button>
+          )}
+          <Button type="submit" size="lg" className="flex-1" disabled={saving || !accountId}>
+            {saving ? "กำลังบันทึก..." : "ตั้งเป้าหมาย"}
+          </Button>
+        </div>
       </form>
     </Card>
   );

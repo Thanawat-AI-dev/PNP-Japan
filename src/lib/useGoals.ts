@@ -6,10 +6,11 @@ export interface Goal {
   title: string;
   target_amount: number;
   target_date: string | null;
+  allocated_amount: number;
 }
 
-export function useGoal(accountId: string | undefined) {
-  const [goal, setGoal] = useState<Goal | null>(null);
+export function useGoals(accountId: string | undefined) {
+  const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,15 +19,13 @@ export function useGoal(accountId: string | undefined) {
     setLoading(true);
     return supabase
       .from("goals")
-      .select("id, title, target_amount, target_date")
+      .select("id, title, target_amount, target_date, allocated_amount")
       .eq("account_id", accountId)
       .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
+      .order("created_at", { ascending: true })
       .then(({ data, error }) => {
         if (error) setError(error.message);
-        setGoal(data);
+        setGoals(data ?? []);
         setLoading(false);
       });
   }, [accountId]);
@@ -35,5 +34,5 @@ export function useGoal(accountId: string | undefined) {
     refetch();
   }, [refetch]);
 
-  return { goal, loading, error, refetch };
+  return { goals, loading, error, refetch };
 }

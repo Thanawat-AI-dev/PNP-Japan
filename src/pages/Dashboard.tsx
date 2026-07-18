@@ -1,4 +1,5 @@
 import { Flame, TriangleAlert } from "lucide-react";
+import { Link } from "react-router-dom";
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from "recharts";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card, CardLabel } from "@/components/ui/Card";
@@ -7,16 +8,16 @@ import { Badge } from "@/components/ui/Badge";
 import { formatBaht } from "@/lib/utils";
 import { useAccount } from "@/lib/useAccount";
 import { useTransactions } from "@/lib/useTransactions";
-import { useGoal } from "@/lib/useGoal";
+import { useGoals } from "@/lib/useGoals";
 import { useInterestPeriods } from "@/lib/useInterestPeriods";
-import { computeBalance, computeMonthlyGrowth } from "@/lib/transactions";
+import { computeBalance, computeDailyGrowth } from "@/lib/transactions";
 import { computeCurrentStreak, computeBestStreak } from "@/lib/streak";
 import { getLevelForBalance } from "@/lib/levels";
 
 export function Dashboard() {
   const { account, loading: accountLoading } = useAccount();
   const { transactions, loading: txLoading } = useTransactions(account?.id);
-  const { goal } = useGoal(account?.id);
+  const { goals } = useGoals(account?.id);
   const { periods } = useInterestPeriods(account?.id);
 
   if (accountLoading || txLoading) {
@@ -38,14 +39,13 @@ export function Dashboard() {
   }
 
   const balance = computeBalance(transactions);
-  const growthHistory = computeMonthlyGrowth(transactions);
+  const growthHistory = computeDailyGrowth(transactions);
   const flagged = transactions.filter((t) => t.needs_review).length;
   const level = getLevelForBalance(balance);
   const currentStreak = computeCurrentStreak(transactions);
   const bestStreak = computeBestStreak(transactions);
   const openPeriod = periods.find((p) => p.actual_gross == null);
-
-  const goalPct = goal ? (balance / goal.target_amount) * 100 : null;
+  const tickInterval = Math.max(0, Math.ceil(growthHistory.length / 6) - 1);
 
   return (
     <MobileShell title="SaveTogether">
@@ -90,25 +90,44 @@ export function Dashboard() {
           </Card>
         </div>
 
-        {goal && goalPct != null ? (
-          <Card>
-            <div className="flex items-baseline justify-between">
-              <CardLabel>เป้าหมาย: {goal.title}</CardLabel>
-              <span className="text-xs font-semibold text-ink-muted">{goalPct.toFixed(1)}%</span>
-            </div>
-            <p className="tabular mt-1 text-sm text-ink">
-              {formatBaht(balance)} / {formatBaht(goal.target_amount)} บาท
-            </p>
-            <ProgressBar value={goalPct} className="mt-3" />
-          </Card>
-        ) : (
-          <Card className="text-center text-sm text-ink-muted">
-            ยังไม่มีเป้าหมาย — ตั้งได้ที่หน้าเป้าหมาย
-          </Card>
-        )}
+        <Link to="/goals" className="block">
+          {goals.length === 0 ? (
+            <Card className="text-center text-sm text-ink-muted">
+              ยังไม่มีเป้าหมาย — แตะเพื่อตั้งเป้าหมาย
+            </Card>
+          ) : goals.length === 1 ? (
+            <Card>
+              <div className="flex items-baseline justify-between">
+                <CardLabel>เป้าหมาย: {goals[0].title}</CardLabel>
+                <span className="text-xs font-semibold text-ink-muted">
+                  {((goals[0].allocated_amount / goals[0].target_amount) * 100).toFixed(1)}%
+                </span>
+              </div>
+              <p className="tabular mt-1 text-sm text-ink">
+                {formatBaht(goals[0].allocated_amount)} / {formatBaht(goals[0].target_amount)} บาท
+              </p>
+              <ProgressBar
+                value={(goals[0].allocated_amount / goals[0].target_amount) * 100}
+                className="mt-3"
+              />
+            </Card>
+          ) : (
+            <Card>
+              <div className="flex items-baseline justify-between">
+                <CardLabel>เป้าหมาย {goals.length} รายการ</CardLabel>
+                <span className="text-xs font-semibold text-growth-600">ดูทั้งหมด →</span>
+              </div>
+              <p className="tabular mt-1 text-sm text-ink">
+                จัดสรรแล้ว ฿
+                {formatBaht(goals.reduce((sum, g) => sum + g.allocated_amount, 0))} จาก ฿
+                {formatBaht(balance)}
+              </p>
+            </Card>
+          )}
+        </Link>
 
         <Card>
-          <CardLabel>การเติบโตของยอดเงิน</CardLabel>
+          <CardLabel>การเติบโตของยอดเงิน (90 วันล่าสุด)</CardLabel>
           {growthHistory.length === 0 ? (
             <p className="py-10 text-center text-sm text-ink-muted">
               ยังไม่มีรายการ — แนบสลิปแรกเพื่อเริ่มติดตาม
@@ -124,9 +143,10 @@ export function Dashboard() {
                     </linearGradient>
                   </defs>
                   <XAxis
-                    dataKey="month"
+                    dataKey="date"
                     tickLine={false}
                     axisLine={false}
+                    interval={tickInterval}
                     tick={{ fontSize: 11, fill: "var(--color-ink-faint)" }}
                   />
                   <Tooltip
