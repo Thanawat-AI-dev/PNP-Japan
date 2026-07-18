@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Transaction } from "@/lib/transactions";
 
@@ -7,27 +7,26 @@ export function useTransactions(accountId: string | undefined) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     if (!accountId) return;
-    let cancelled = false;
     setLoading(true);
-
-    supabase
+    return supabase
       .from("transactions")
-      .select("id, type, amount_cents, occurred_at, note, needs_review, created_by, created_at")
+      .select(
+        "id, type, amount_cents, occurred_at, note, needs_review, cancel_requested, created_by, created_at",
+      )
       .eq("account_id", accountId)
       .order("occurred_at", { ascending: false })
       .then(({ data, error }) => {
-        if (cancelled) return;
         if (error) setError(error.message);
         setTransactions(data ?? []);
         setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [accountId]);
 
-  return { transactions, loading, error };
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { transactions, loading, error, refetch };
 }

@@ -1,11 +1,17 @@
-import { Download, TriangleAlert } from "lucide-react";
+import { useState } from "react";
+import { Download, TriangleAlert, Pencil, Trash2, Ban } from "lucide-react";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { formatBaht, formatThaiDate } from "@/lib/utils";
+import { Input } from "@/components/ui/Input";
+import { formatBaht, formatThaiDate, toDatetimeLocalValue } from "@/lib/utils";
 import { useAccount } from "@/lib/useAccount";
 import { useTransactions } from "@/lib/useTransactions";
+import { useAuth } from "@/lib/auth";
+import { useProfile } from "@/lib/useProfile";
+import { supabase } from "@/lib/supabase";
+import type { Transaction, TransactionType } from "@/lib/transactions";
 
 const typeLabel: Record<string, string> = {
   deposit: "ฝากเงิน",
@@ -13,6 +19,8 @@ const typeLabel: Record<string, string> = {
   interest: "ดอกเบี้ย",
   adjustment: "ปรับปรุง",
 };
+
+const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function downloadCsv(
   transactions: { type: string; amount_cents: number; occurred_at: string; note: string | null }[],
@@ -35,7 +43,9 @@ function downloadCsv(
 
 export function History() {
   const { account } = useAccount();
-  const { transactions, loading } = useTransactions(account?.id);
+  const { transactions, loading, refetch } = useTransactions(account?.id);
+  const { session } = useAuth();
+  const { isAdmin } = useProfile();
 
   return (
     <MobileShell title="ประวัติรายการ">
@@ -57,30 +67,198 @@ export function History() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {transactions.map((t) => (
-            <Card key={t.id} className="flex items-center justify-between p-4">
-              <div>
-                <p className="font-semibold text-ink">{typeLabel[t.type]}</p>
-                <p className="text-xs text-ink-muted">
-                  {formatThaiDate(new Date(t.occurred_at))}
-                  {t.note ? ` · ${t.note}` : ""}
-                </p>
-                {t.needs_review && (
-                  <Badge tone="caution" className="mt-1.5">
-                    <TriangleAlert className="h-3 w-3" /> รอตรวจสอบ
-                  </Badge>
-                )}
-              </div>
-              <p
-                className={`tabular text-base font-bold ${
-                  t.type === "withdrawal" ? "text-ink" : "text-growth-600"
-                }`}
-              >
-                {t.type === "withdrawal" ? "-" : "+"}฿{formatBaht(t.amount_cents / 100)}
-              </p>
-            </Card>
+            <TransactionRow
+              key={t.id}
+              transaction={t}
+              isAdmin={isAdmin}
+              myId={session?.user.id}
+              onChanged={refetch}
+            />
           ))}
         </div>
       )}
     </MobileShell>
+  );
+}
+
+function TransactionRow({
+  transaction: t,
+  isAdmin,
+  myId,
+  onChanged,
+}: {
+  transaction: Transaction;
+  isAdmin: boolean;
+  myId: string | undefined;
+  onChanged: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [type, setType] = useState<TransactionType>(t.type);
+  const [amount, setAmount] = useState(String(t.amount_cents / 100));
+  const [datetimeInput, setDatetimeInput] = useState(toDatetimeLocalValue(new Date(t.occurred_at)));
+  const [note, setNote] = useState(t.note ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const isOwn = t.created_by === myId;
+  const withinWindow = new Date(t.created_at).getTime() > Date.now() - EDIT_WINDOW_MS;
+  const canEdit = isAdmin || (isOwn && withinWindow);
+  const canRequestCancel = !isAdmin && isOwn && !withinWindow && !t.cancel_requested;
+
+  async function saveEdit() {
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        type,
+        amount_cents: Math.round(Number(amount) * 100),
+        occurred_at: new Date(datetimeInput).toISOString(),
+        note: note || null,
+      })
+      .eq("id", t.id);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setEditing(false);
+    onChanged();
+  }
+
+  async function handleDelete() {
+    if (!confirm("ลบรายการนี้ทิ้ง? ไม่สามารถกู้คืนได้")) return;
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase.from("transactions").delete().eq("id", t.id);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    onChanged();
+  }
+
+  async function requestCancel() {
+    if (!confirm("ขอยกเลิกรายการนี้? Admin จะเห็นคำขอและตรวจสอบ")) return;
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase
+      .from("transactions")
+      .update({ cancel_requested: true })
+      .eq("id", t.id);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    onChanged();
+  }
+
+  if (editing) {
+    return (
+      <Card>
+        <div className="flex flex-col gap-3">
+          <div>
+            <label className="text-sm font-medium text-ink">ประเภท</label>
+            <select
+              className="mt-1 h-12 w-full rounded-[var(--radius-control)] border border-line-strong bg-surface px-4 text-[15px] text-ink"
+              value={type}
+              onChange={(e) => setType(e.target.value as TransactionType)}
+            >
+              <option value="deposit">ฝากเงิน</option>
+              <option value="withdrawal">ถอนเงิน</option>
+              <option value="interest">ดอกเบี้ย</option>
+              <option value="adjustment">ปรับปรุง</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-ink">จำนวนเงิน (บาท)</label>
+            <Input
+              className="mt-1"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-ink">วันที่และเวลา</label>
+            <Input
+              type="datetime-local"
+              className="mt-1"
+              value={datetimeInput}
+              onChange={(e) => setDatetimeInput(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-ink">หมายเหตุ</label>
+            <Input className="mt-1" value={note} onChange={(e) => setNote(e.target.value)} />
+          </div>
+          {error && <p className="text-sm text-alert-600">{error}</p>}
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setEditing(false)}>
+              ยกเลิก
+            </Button>
+            <Button className="flex-1" disabled={saving} onClick={saveEdit}>
+              บันทึก
+            </Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-semibold text-ink">{typeLabel[t.type]}</p>
+          <p className="text-xs text-ink-muted">
+            {formatThaiDate(new Date(t.occurred_at))}
+            {t.note ? ` · ${t.note}` : ""}
+          </p>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {t.needs_review && (
+              <Badge tone="caution">
+                <TriangleAlert className="h-3 w-3" /> รอตรวจสอบ
+              </Badge>
+            )}
+            {t.cancel_requested && (
+              <Badge tone="alert">
+                <Ban className="h-3 w-3" /> รอ Admin อนุมัติยกเลิก
+              </Badge>
+            )}
+          </div>
+        </div>
+        <p
+          className={`tabular text-base font-bold ${
+            t.type === "withdrawal" ? "text-ink" : "text-growth-600"
+          }`}
+        >
+          {t.type === "withdrawal" ? "-" : "+"}฿{formatBaht(t.amount_cents / 100)}
+        </p>
+      </div>
+
+      {(canEdit || canRequestCancel) && (
+        <div className="mt-3 flex gap-2 border-t border-line pt-3">
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Pencil className="h-3.5 w-3.5" /> แก้ไข
+            </Button>
+          )}
+          {isAdmin && (
+            <Button variant="outline" size="sm" disabled={saving} onClick={handleDelete}>
+              <Trash2 className="h-3.5 w-3.5" /> ลบ
+            </Button>
+          )}
+          {canRequestCancel && (
+            <Button variant="outline" size="sm" disabled={saving} onClick={requestCancel}>
+              <Ban className="h-3.5 w-3.5" /> ขอยกเลิก
+            </Button>
+          )}
+        </div>
+      )}
+      {error && <p className="mt-2 text-xs text-alert-600">{error}</p>}
+    </Card>
   );
 }

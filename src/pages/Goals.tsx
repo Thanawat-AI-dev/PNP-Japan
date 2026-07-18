@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pencil, Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { Pencil, Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { LineChart, Line, XAxis, ResponsiveContainer } from "recharts";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card, CardLabel } from "@/components/ui/Card";
@@ -165,6 +165,10 @@ function GoalCard({
 
   async function saveAllocation() {
     const newAmount = Number(allocatedInput);
+    if (newAmount < goal.allocated_amount) {
+      setError("ลดยอดจัดสรรไม่ได้ - จัดสรรเพิ่มได้อย่างเดียว ถ้าจะนำเงินออกให้ลบเป้าหมายนี้แทน");
+      return;
+    }
     const roomAvailable = unallocated + goal.allocated_amount;
     if (newAmount > roomAvailable) {
       setError(`จัดสรรได้ไม่เกิน ฿${formatBaht(roomAvailable)} (ยอดที่เหลือ)`);
@@ -176,6 +180,25 @@ function GoalCard({
       .from("goals")
       .update({ allocated_amount: newAmount })
       .eq("id", goal.id);
+    setSaving(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    onChanged();
+  }
+
+  async function handleDelete() {
+    if (
+      !confirm(
+        `ลบเป้าหมาย "${goal.title}" ทิ้ง? เงินที่จัดสรรไว้ ฿${formatBaht(goal.allocated_amount)} จะกลับไปเป็นยอดที่ยังไม่จัดสรร`,
+      )
+    ) {
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error } = await supabase.from("goals").delete().eq("id", goal.id);
     setSaving(false);
     if (error) {
       setError(error.message);
@@ -235,7 +258,7 @@ function GoalCard({
     <Card>
       <div className="flex items-baseline justify-between">
         <CardLabel>{goal.title}</CardLabel>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="text-xs font-semibold text-ink-muted">{goalPct.toFixed(1)}%</span>
           <button
             type="button"
@@ -243,6 +266,14 @@ function GoalCard({
             className="text-ink-faint hover:text-ink"
           >
             <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving}
+            className="text-ink-faint hover:text-alert-600"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>

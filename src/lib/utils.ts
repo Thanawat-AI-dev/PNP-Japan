@@ -22,3 +22,9 @@ export function formatThaiDate(date: Date) {
     timeZone: "Asia/Bangkok",
   }).format(date);
 }
+
+/** Formats a Date for an `<input type="datetime-local">` value, in local time. */
+export function toDatetimeLocalValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

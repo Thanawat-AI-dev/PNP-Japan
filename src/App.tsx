@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { RequireAuth } from "@/components/RequireAuth";
+import { RequireAdmin } from "@/components/RequireAdmin";
 import { Login } from "@/pages/Login";
 import { Dashboard } from "@/pages/Dashboard";
 import { AddSlip } from "@/pages/AddSlip";
@@ -12,6 +13,8 @@ import { Interest } from "@/pages/Interest";
 import { Reconciliation } from "@/pages/Reconciliation";
 import { AuditLog } from "@/pages/AuditLog";
 import { StyleGuide } from "@/pages/StyleGuide";
+import { Admin } from "@/pages/Admin";
+import { InterestRates } from "@/pages/InterestRates";
 
 function App() {
   return (
@@ -79,7 +82,9 @@ function App() {
             path="/reconciliation"
             element={
               <RequireAuth>
-                <Reconciliation />
+                <RequireAdmin>
+                  <Reconciliation />
+                </RequireAdmin>
               </RequireAuth>
             }
           />
@@ -88,6 +93,26 @@ function App() {
             element={
               <RequireAuth>
                 <AuditLog />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <Admin />
+                </RequireAdmin>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/interest-rates"
+            element={
+              <RequireAuth>
+                <RequireAdmin>
+                  <InterestRates />
+                </RequireAdmin>
               </RequireAuth>
             }
           />

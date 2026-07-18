@@ -1,10 +1,13 @@
+export type TransactionType = "deposit" | "withdrawal" | "interest" | "adjustment";
+
 export interface Transaction {
   id: string;
-  type: "deposit" | "withdrawal" | "interest" | "adjustment";
+  type: TransactionType;
   amount_cents: number;
   occurred_at: string;
   note: string | null;
   needs_review: boolean;
+  cancel_requested: boolean;
   created_by: string | null;
   created_at: string;
 }

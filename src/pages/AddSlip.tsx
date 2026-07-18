@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { localOcrParser } from "@/lib/slipParser/localOcrParser";
 import { confidenceTier } from "@/lib/slipParser/confidence";
 import type { SlipParseResult } from "@/lib/slipParser/types";
-import { formatThaiDate } from "@/lib/utils";
+import { toDatetimeLocalValue } from "@/lib/utils";
 import { useAccount } from "@/lib/useAccount";
 import { saveSlipTransaction, DuplicateSlipError } from "@/lib/saveSlipTransaction";
 
@@ -22,6 +22,7 @@ export function AddSlip() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SlipParseResult | null>(null);
   const [amount, setAmount] = useState("");
+  const [datetimeInput, setDatetimeInput] = useState("");
   const [savedWarning, setSavedWarning] = useState<string | null>(null);
 
   async function handleFile(f: File | null) {
@@ -34,9 +35,11 @@ export function AddSlip() {
       const parsed = await localOcrParser.parse(f);
       setResult(parsed);
       setAmount(parsed.amount != null ? String(parsed.amount) : "");
+      setDatetimeInput(toDatetimeLocalValue(parsed.datetime ?? new Date()));
     } catch (err) {
       console.error(err);
       setError("อ่านสลิปไม่สำเร็จ กรุณากรอกจำนวนเงินและวันที่เอง");
+      setDatetimeInput(toDatetimeLocalValue(new Date()));
       setResult({
         amount: null,
         datetime: null,
@@ -70,7 +73,7 @@ export function AddSlip() {
         accountId: account.id,
         file,
         amount: Number(amount),
-        datetime: result.datetime,
+        datetime: datetimeInput ? new Date(datetimeInput) : null,
         parsed: result,
       });
       if (warning) {
@@ -171,16 +174,33 @@ export function AddSlip() {
                         placeholder={result.amount == null ? "ไม่พบ กรอกเอง" : undefined}
                       />
                     </div>
+                    <div>
+                      <label className="text-sm font-medium text-ink">วันที่และเวลา</label>
+                      <Input
+                        type="datetime-local"
+                        className={result.datetime == null ? "mt-1 border-caution-400" : "mt-1"}
+                        value={datetimeInput}
+                        onChange={(e) => setDatetimeInput(e.target.value)}
+                      />
+                      {result.datetime == null && (
+                        <p className="mt-1 text-xs text-caution-600">
+                          ไม่พบวันที่บนสลิป — ตรวจสอบและแก้ไขให้ตรงก่อนยืนยัน
+                        </p>
+                      )}
+                    </div>
                     <div className="rounded-[var(--radius-control)] bg-surface-sunken px-3 py-2 text-sm text-ink-muted">
-                      {result.datetime ? formatThaiDate(result.datetime) : "ไม่พบวันที่ — กรอกเอง"}
-                      {result.referenceSource === "qr" && " · อ่าน QR สำเร็จ (กันรายการซ้ำ)"}
-                      {result.referenceSource === "ocr" && ` · รหัสอ้างอิง ${result.reference}`}
-                      {result.referenceSource == null && " · ไม่พบ QR หรือรหัสอ้างอิง"}
+                      {result.referenceSource === "qr" && "อ่าน QR สำเร็จ (กันรายการซ้ำ)"}
+                      {result.referenceSource === "ocr" && `รหัสอ้างอิง ${result.reference}`}
+                      {result.referenceSource == null && "ไม่พบ QR หรือรหัสอ้างอิง"}
                     </div>
                   </div>
                 </Card>
 
-                <Button size="lg" disabled={!amount || !account || saving} onClick={handleConfirm}>
+                <Button
+                  size="lg"
+                  disabled={!amount || !datetimeInput || !account || saving}
+                  onClick={handleConfirm}
+                >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "ยืนยัน"}
                 </Button>
               </>

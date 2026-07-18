@@ -1,41 +1,44 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export interface RateTier {
+  id: string;
   effective_from: string;
   effective_to: string | null;
   tier_order: number;
   min_balance: number;
   max_balance: number | null;
   annual_rate: number;
+  source_note: string | null;
 }
 
 export function useInterestRateTiers(accountId: string | undefined) {
   const [tiers, setTiers] = useState<RateTier[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refetch = useCallback(() => {
     if (!accountId) return;
-    let cancelled = false;
-
-    supabase
+    setLoading(true);
+    return supabase
       .from("interest_rate_tiers")
-      .select("effective_from, effective_to, tier_order, min_balance, max_balance, annual_rate")
+      .select(
+        "id, effective_from, effective_to, tier_order, min_balance, max_balance, annual_rate, source_note",
+      )
       .eq("account_id", accountId)
+      .order("effective_from", { ascending: false })
       .order("tier_order", { ascending: true })
       .then(({ data, error }) => {
-        if (cancelled) return;
         if (error) console.error(error);
         setTiers(data ?? []);
         setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [accountId]);
 
-  return { tiers, loading };
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  return { tiers, loading, refetch };
 }
 
 /** Tiers whose effective date range covers `date` (spec section 6.2). */
