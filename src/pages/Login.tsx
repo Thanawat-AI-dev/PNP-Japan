@@ -1,16 +1,34 @@
 import { useState } from "react";
-import { Sprout } from "lucide-react";
+import { Navigate } from "react-router-dom";
+import { Sprout, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 
 export function Login() {
+  const { session, loading: sessionLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleSubmit(e: React.FormEvent) {
+  if (!sessionLoading && session) return <Navigate to="/" replace />;
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: wire to supabase.auth.signInWithOtp({ email }) once Supabase is connected.
+    setSending(true);
+    setError(null);
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: window.location.origin },
+    });
+    setSending(false);
+    if (error) {
+      setError("ส่งลิงก์ไม่สำเร็จ: " + error.message);
+      return;
+    }
     setSent(true);
   }
 
@@ -46,8 +64,9 @@ export function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <Button type="submit" size="lg" className="mt-2">
-                ส่งลิงก์เข้าสู่ระบบ
+              {error && <p className="text-sm text-alert-600">{error}</p>}
+              <Button type="submit" size="lg" className="mt-2" disabled={sending}>
+                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "ส่งลิงก์เข้าสู่ระบบ"}
               </Button>
             </form>
           )}
