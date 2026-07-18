@@ -1,6 +1,6 @@
+import { lazy, Suspense } from "react";
 import { Flame, TriangleAlert } from "lucide-react";
 import { Link } from "react-router-dom";
-import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from "recharts";
 import { MobileShell } from "@/components/layout/MobileShell";
 import { Card, CardLabel } from "@/components/ui/Card";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -19,6 +19,8 @@ import {
 } from "@/lib/streak";
 import { getLevelForBalance } from "@/lib/levels";
 import { periodContaining, estimatePeriodInterest } from "@/lib/interestAccrual";
+
+const GrowthChart = lazy(() => import("@/components/GrowthChart"));
 
 export function Dashboard() {
   const { account, loading: accountLoading } = useAccount();
@@ -146,41 +148,9 @@ export function Dashboard() {
               ยังไม่มีรายการ — แนบสลิปแรกเพื่อเริ่มติดตาม
             </p>
           ) : (
-            <div className="-mx-2 mt-2 h-36">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={growthHistory} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="growthFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--color-growth-500)" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="var(--color-growth-500)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis
-                    dataKey="date"
-                    tickLine={false}
-                    axisLine={false}
-                    interval={tickInterval}
-                    tick={{ fontSize: 11, fill: "var(--color-ink-faint)" }}
-                  />
-                  <Tooltip
-                    formatter={(v) => [`฿${formatBaht(Number(v))}`, "ยอดรวม"]}
-                    contentStyle={{
-                      borderRadius: 12,
-                      border: "1px solid var(--color-line)",
-                      background: "var(--color-surface)",
-                      fontSize: 13,
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="balance"
-                    stroke="var(--color-growth-500)"
-                    strokeWidth={2.5}
-                    fill="url(#growthFill)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            <Suspense fallback={<div className="-mx-2 mt-2 h-36" />}>
+              <GrowthChart data={growthHistory} tickInterval={tickInterval} />
+            </Suspense>
           )}
         </Card>
       </div>

@@ -1,27 +1,29 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeRefetch } from "@/lib/useRealtime";
 
 export function useAchievements() {
   const [earnedCodes, setEarnedCodes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    supabase
+  const refetch = useCallback(() => {
+    return supabase
       .from("achievements")
       .select("badge_code")
       .then(({ data, error }) => {
-        if (cancelled) return;
         if (error) console.error(error);
         setEarnedCodes(new Set((data ?? []).map((r) => r.badge_code)));
         setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  useEffect(() => {
+    refetch();
+  }, [refetch]);
+
+  // Badges are awarded by DB triggers, so a new row can appear at any time -
+  // keep the page live without a refresh.
+  useRealtimeRefetch("achievements", refetch);
 
   return { earnedCodes, loading };
 }

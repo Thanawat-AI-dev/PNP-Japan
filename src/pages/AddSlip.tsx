@@ -6,7 +6,6 @@ import { Card, CardLabel } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { localOcrParser } from "@/lib/slipParser/localOcrParser";
 import { confidenceTier } from "@/lib/slipParser/confidence";
 import type { SlipParseResult } from "@/lib/slipParser/types";
 import { toDatetimeLocalValue } from "@/lib/utils";
@@ -71,6 +70,10 @@ function SlipForm() {
     setError(null);
     setParsing(true);
     try {
+      // Loaded on demand so the OCR engine (tesseract.js + jsqr, the single
+      // largest dependency) never ships in the initial bundle - it only
+      // downloads the first time someone actually parses a slip.
+      const { localOcrParser } = await import("@/lib/slipParser/localOcrParser");
       const parsed = await localOcrParser.parse(f);
       setResult(parsed);
       setAmount(parsed.amount != null ? String(parsed.amount) : "");
