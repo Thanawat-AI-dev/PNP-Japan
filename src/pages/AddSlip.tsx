@@ -10,14 +10,19 @@ import { localOcrParser } from "@/lib/slipParser/localOcrParser";
 import { confidenceTier } from "@/lib/slipParser/confidence";
 import type { SlipParseResult } from "@/lib/slipParser/types";
 import { formatThaiDate } from "@/lib/utils";
+import { useAccount } from "@/lib/useAccount";
+import { saveSlipTransaction, DuplicateSlipError } from "@/lib/saveSlipTransaction";
 
 export function AddSlip() {
   const navigate = useNavigate();
+  const { account } = useAccount();
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SlipParseResult | null>(null);
   const [amount, setAmount] = useState("");
+  const [savedWarning, setSavedWarning] = useState<string | null>(null);
 
   async function handleFile(f: File | null) {
     if (!f) return;
@@ -56,8 +61,52 @@ export function AddSlip() {
     setAmount("");
   }
 
+  async function handleConfirm() {
+    if (!account || !file || !result) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const { warning } = await saveSlipTransaction({
+        accountId: account.id,
+        file,
+        amount: Number(amount),
+        datetime: result.datetime,
+        parsed: result,
+      });
+      if (warning) {
+        // Non-fatal per spec (layer 3 only warns) - already saved, just flag it for review.
+        setSaving(false);
+        setSavedWarning(warning);
+        return;
+      }
+      navigate("/");
+    } catch (err) {
+      setSaving(false);
+      if (err instanceof DuplicateSlipError) {
+        setError(err.message);
+        return;
+      }
+      console.error(err);
+      setError("บันทึกไม่สำเร็จ กรุณาลองใหม่");
+    }
+  }
+
   const tier = result ? confidenceTier(result.confidence) : null;
   const confidenceTone = tier === "auto" ? "growth" : tier === "review" ? "caution" : "alert";
+
+  if (savedWarning) {
+    return (
+      <MobileShell title="แนบสลิป" hideFab>
+        <Card className="flex flex-col items-center gap-3 text-center">
+          <p className="font-semibold text-ink">บันทึกแล้ว</p>
+          <p className="text-sm text-caution-600">{savedWarning}</p>
+          <Button size="lg" className="w-full" onClick={() => navigate("/")}>
+            ไปหน้าแรก
+          </Button>
+        </Card>
+      </MobileShell>
+    );
+  }
 
   return (
     <MobileShell title="แนบสลิป" hideFab>
@@ -131,8 +180,8 @@ export function AddSlip() {
                   </div>
                 </Card>
 
-                <Button size="lg" disabled={!amount} onClick={() => navigate("/")}>
-                  ยืนยัน
+                <Button size="lg" disabled={!amount || !account || saving} onClick={handleConfirm}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "ยืนยัน"}
                 </Button>
               </>
             )}
