@@ -136,7 +136,7 @@ function GoalCard({
   const [title, setTitle] = useState(goal.title);
   const [targetAmount, setTargetAmount] = useState(String(goal.target_amount));
   const [targetDate, setTargetDate] = useState(goal.target_date ?? "");
-  const [allocatedInput, setAllocatedInput] = useState("0");
+  const [allocatedInput, setAllocatedInput] = useState("");
   const [monthlyDeposit, setMonthlyDeposit] = useState(2_000);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -186,7 +186,7 @@ function GoalCard({
       setError(error.message);
       return;
     }
-    setAllocatedInput("0");
+    setAllocatedInput("");
     setSuccess(`จัดสรรสำเร็จ +฿${formatBaht(addAmount)}`);
     setTimeout(() => setSuccess(null), 3000);
     onChanged();
@@ -292,6 +292,7 @@ function GoalCard({
           <Input
             className="mt-1"
             inputMode="decimal"
+            placeholder="0"
             value={allocatedInput}
             onChange={(e) => {
               setAllocatedInput(e.target.value);
