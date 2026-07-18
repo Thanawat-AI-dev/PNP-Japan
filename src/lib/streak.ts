@@ -48,3 +48,50 @@ export function computeBestStreak(transactions: Transaction[]): number {
   }
   return best;
 }
+
+/** Monday of the calendar week containing `d`, at local midnight. */
+function startOfWeek(d: Date): Date {
+  const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const daysSinceMonday = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - daysSinceMonday);
+  return date;
+}
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Same idea as computeCurrentStreak but counting consecutive calendar weeks. */
+export function computeCurrentWeeklyStreak(transactions: Transaction[], now = new Date()): number {
+  const depositWeeks = new Set(
+    transactions
+      .filter((t) => t.type === "deposit")
+      .map((t) => startOfWeek(new Date(t.occurred_at)).getTime()),
+  );
+
+  let streak = 0;
+  const cursor = startOfWeek(now);
+  while (depositWeeks.has(cursor.getTime())) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 7);
+  }
+  return streak;
+}
+
+export function computeBestWeeklyStreak(transactions: Transaction[]): number {
+  const depositWeekKeys = [
+    ...new Set(
+      transactions
+        .filter((t) => t.type === "deposit")
+        .map((t) => startOfWeek(new Date(t.occurred_at)).getTime()),
+    ),
+  ].sort((a, b) => a - b);
+
+  let best = 0;
+  let current = 0;
+  let prev: number | null = null;
+  for (const key of depositWeekKeys) {
+    current = prev != null && key === prev + WEEK_MS ? current + 1 : 1;
+    best = Math.max(best, current);
+    prev = key;
+  }
+  return best;
+}

@@ -11,7 +11,12 @@ import { useTransactions } from "@/lib/useTransactions";
 import { useGoals } from "@/lib/useGoals";
 import { useInterestRateTiers } from "@/lib/useInterestRateTiers";
 import { computeBalance, computeDailyGrowth } from "@/lib/transactions";
-import { computeCurrentStreak, computeBestStreak } from "@/lib/streak";
+import {
+  computeCurrentStreak,
+  computeBestStreak,
+  computeCurrentWeeklyStreak,
+  computeBestWeeklyStreak,
+} from "@/lib/streak";
 import { getLevelForBalance } from "@/lib/levels";
 import { periodContaining, estimatePeriodInterest } from "@/lib/interestAccrual";
 
@@ -45,6 +50,8 @@ export function Dashboard() {
   const level = getLevelForBalance(balance);
   const currentStreak = computeCurrentStreak(transactions);
   const bestStreak = computeBestStreak(transactions);
+  const currentWeeklyStreak = computeCurrentWeeklyStreak(transactions);
+  const bestWeeklyStreak = computeBestWeeklyStreak(transactions);
   const currentPeriod = periodContaining(account.interest_payout ?? "semiannual", new Date());
   const estimatedInterest = estimatePeriodInterest(transactions, tiers, currentPeriod);
   const tickInterval = Math.max(0, Math.ceil(growthHistory.length / 6) - 1);
@@ -74,6 +81,11 @@ export function Dashboard() {
                 <Flame className="h-3.5 w-3.5" /> {currentStreak} เดือนติด
               </Badge>
             )}
+            {currentWeeklyStreak > 0 && (
+              <Badge tone="trust">
+                <Flame className="h-3.5 w-3.5" /> {currentWeeklyStreak} สัปดาห์ติด
+              </Badge>
+            )}
           </div>
         </Card>
 
@@ -87,6 +99,7 @@ export function Dashboard() {
           <Card className="p-4">
             <CardLabel>Best streak</CardLabel>
             <p className="tabular mt-1 text-xl font-bold text-ink">{bestStreak} เดือน</p>
+            <p className="tabular text-xs font-medium text-ink-muted">{bestWeeklyStreak} สัปดาห์</p>
           </Card>
         </div>
 
